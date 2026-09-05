@@ -345,7 +345,7 @@ function ProductionLine(){
   const speedRef=useRef(1); useEffect(()=>{speedRef.current=speed},[speed]);
   useEffect(()=>{ if(reduced) setRunning(false); },[reduced]);
 
-  const init=()=>({ph:0,t:0,slabs:5,lifted:0,cycles:0,hidden:-1,fill:0,packed:138,nextPk:141,
+  const init=()=>({ph:0,t:0,slabs:5,lifted:0,cycles:0,hidden:-1,fill:0,packed:138,packed0:138,nextPk:141,
     queue:[{id:138},{id:139},{id:140}],rollout:null,van:{boxes:[],count:0,id:7},
     doorOpen:false,cure:64,batch:217,refills:0,exposure:0,elapsed:0,trips:14});
   const M=useRef(init()).current;
@@ -418,7 +418,7 @@ function ProductionLine(){
   const slabDy=crushOn?40*t:0;
   const fillNow=Math.min(100,M.fill+(crushOn?(100/3)*t:0));
   const vanTx=ph.id==='depart'?(t<.5?lerp(0,215,ease(t/.5)):lerp(215,0,ease((t-.5)/.5))):0;
-  const rate=M.elapsed>45?M.packed*3600/M.elapsed:null;
+  const rate=(M.elapsed>45&&M.packed>M.packed0)?((M.packed-M.packed0)*3600/M.elapsed):null;
   const cureRem=(100-M.cure)*1.4;
   const craneLabel=['lower','grab','lift','travel','load','crush','return'].includes(ph.id)
     ? ph.short.toUpperCase() : 'STANDBY';
