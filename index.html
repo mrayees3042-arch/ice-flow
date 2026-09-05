@@ -1191,6 +1191,15 @@ function Dashboard({session, onLogout}){
     return()=>clearInterval(id);
   },[live]);
 
+  /* age out live orders from "Loading bay" to "In transit" after 3 min */
+  useEffect(()=>{
+    if(!live) return;
+    const id=setInterval(()=>setOrders(o=>o.map(x=>
+      x.live&&x.status==='Loading bay'&&(Date.now()-x.when.getTime())>180000
+        ?{...x,status:'In transit'}:x)),30000);
+    return()=>clearInterval(id);
+  },[live]);
+
   const reconnect=useCallback(()=>{
     setDev(d=>({...d,online:true,power:'grid'}));
     const b=buffer.current; buffer.current=[];
