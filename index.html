@@ -726,36 +726,36 @@ function SalesChart({stats, n}){
   const {perDay, priorPerDay}=stats;
   const W=760,H=290,PL=46,PR=12,PT=18,PB=30;
   const plotW=W-PL-PR, plotH=H-PT-PB;
-  const maxV=Math.max(...perDay.map(d=>d.units), ...priorPerDay.map(d=>d.units));
-  const nice=Math.max(400, Math.ceil(maxV/400)*400);
+  const maxV=Math.max(...perDay.map(d=>d.boxes), ...priorPerDay.map(d=>d.boxes));
+  const nice=Math.max(50, Math.ceil(maxV/50)*50);
   const y=v=>PT+plotH-(v/nice)*plotH;
   const nD=perDay.length, band=plotW/nD;
   const bw=Math.min(band*0.55, nD>16?11:30);
   const xC=i=>PL+band*i+band/2;
   const [hov,setHov]=useState(null);
   const step=Math.ceil(nD/9);
-  const line=priorPerDay.map((d,i)=>(i?'L':'M')+xC(i).toFixed(1)+','+y(d.units).toFixed(1)).join(' ');
+  const line=priorPerDay.map((d,i)=>(i?'L':'M')+xC(i).toFixed(1)+','+y(d.boxes).toFixed(1)).join(' ');
   const hd=d=>d.date.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
-  const peak=perDay.reduce((a,b)=>b.units>a.units?b:a);
+  const peak=perDay.reduce((a,b)=>b.boxes>a.boxes?b:a);
   return (
     <div>
       <div className="relative">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block" onMouseLeave={()=>setHov(null)} role="img"
-          aria-label={`Daily ice sales for the last ${n} days with previous period trend`}>
+          aria-label={`Daily ice box count for the last ${n} days with previous period trend`}>
           {[0.25,0.5,0.75,1].map(g=>
             <g key={g}>
               <line x1={PL} x2={W-PR} y1={y(nice*g)} y2={y(nice*g)} stroke="rgba(15,110,117,.12)" strokeDasharray="3 5"/>
-              <text x={PL-8} y={y(nice*g)+3} textAnchor="end" fontSize="10" fill="rgba(11,58,64,.5)" fontFamily="'Space Grotesk',sans-serif">{fmtK(nice*g)}</text>
+              <text x={PL-8} y={y(nice*g)+3} textAnchor="end" fontSize="10" fill="rgba(11,58,64,.5)" fontFamily="'Space Grotesk',sans-serif">{fmtK(nice*g)} b</text>
             </g>)}
           <line x1={PL} x2={W-PR} y1={PT+plotH} y2={PT+plotH} stroke="rgba(15,110,117,.35)"/>
           <path d={line} fill="none" stroke="rgba(11,58,64,.4)" strokeWidth="1.5" strokeDasharray="5 4"/>
-          {priorPerDay.map((d,i)=><circle key={i} cx={xC(i)} cy={y(d.units)} r="2" fill="rgba(11,58,64,.45)"/>)}
+          {priorPerDay.map((d,i)=><circle key={i} cx={xC(i)} cy={y(d.boxes)} r="2" fill="rgba(11,58,64,.45)"/>)}
           {perDay.map((d,i)=>{ const h=hov===i; return (
             <g key={i}>
-              <rect x={xC(i)-bw/2} y={y(d.units)} width={bw} height={PT+plotH-y(d.units)} rx="2"
+              <rect x={xC(i)-bw/2} y={y(d.boxes)} width={bw} height={PT+plotH-y(d.boxes)} rx="2"
                 fill={h?'#0B565C':'#0F6E75'} opacity={h?1:(i===nD-1?1:.82)}/>
-              {i===nD-1&&<text x={xC(i)} y={y(d.units)-5} textAnchor="middle" fontSize="10" fontWeight="600"
-                fontFamily="'Space Grotesk',sans-serif" fill="#0B3A40">{fmtK(d.units)}</text>}
+              {i===nD-1&&<text x={xC(i)} y={y(d.boxes)-5} textAnchor="middle" fontSize="10" fontWeight="600"
+                fontFamily="'Space Grotesk',sans-serif" fill="#0B3A40">{fmtK(d.boxes)}</text>}
               <rect x={PL+band*i} y={PT} width={band} height={plotH} fill="transparent" onMouseEnter={()=>setHov(i)}/>
             </g>);})}
           {perDay.map((d,i)=> i%step===0
@@ -764,15 +764,15 @@ function SalesChart({stats, n}){
             :null)}
         </svg>
         {hov!=null&&(()=>{ const d=perDay[hov], p=priorPerDay[hov];
-          const diff=p?Math.round(100*(d.units-p.units)/p.units):null;
-          const yPct=(y(d.units)/H)*100;
+          const diff=p?Math.round(100*(d.boxes-p.boxes)/p.boxes):null;
+          const yPct=(y(d.boxes)/H)*100;
           const isNearTop=yPct<22;
           return (
             <div className={`absolute pointer-events-none z-10 -translate-x-1/2 ${isNearTop?'translate-y-3':'-translate-y-full'}`}
               style={{left:`${(xC(hov)/W)*100}%`, top:`${yPct}%`}}>
               <div className="rounded-lg bg-abyss/95 text-mist px-3 py-2 text-xs shadow-lg whitespace-nowrap">
                 <p className="font-grot font-semibold">{hd(d)}</p>
-                <p>{fmtN(d.units)} units · {fmtINR(d.units*PRICE_PER_UNIT)}</p>
+                <p>{fmtN(d.boxes)} boxes ({d.blocks} blocks) · {fmtINR(d.revenue)}</p>
                 {diff!=null&&<p className={`flex items-center gap-1 ${diff>=0?'text-brand':'text-[#FFA38F]'}`}>
                   <I n={diff>=0?'up':'down'} className="w-3 h-3"/>{Math.abs(diff)}% vs prior</p>}
               </div>
@@ -781,40 +781,48 @@ function SalesChart({stats, n}){
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-deep/60">
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-lagoon"/>This period</span>
         <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed border-deep/50"/>Previous {n} days</span>
-        <span className="ml-auto">Peak: <b className="font-grot">{hd(peak)}</b> · {fmtN(peak.units)} units</span>
+        <span className="ml-auto">Peak: <b className="font-grot">{hd(peak)}</b> · {fmtN(peak.boxes)} boxes ({fmtINR(peak.revenue)})</span>
       </div>
     </div>);
 }
 
 /* ============================ CUSTOMER MIX ============================ */
-function CustomerMix({customers, sel, onSel}){
+function CustomerMix({customers, sel, onSel, onOpenStatement}){
   return (
     <div>
       <ul className="divide-y divide-lagoon/10">
         {customers.map(c=>{ const active=sel===c.name; return (
-          <li key={c.name}>
-            <button onClick={()=>onSel(active?null:c.name)} aria-pressed={active}
-              className={`w-full text-left px-2 py-2.5 rounded-lg transition ${active?'bg-lagoon/10 ring-1 ring-lagoon/35':'hover:bg-brand/20'}`}>
+          <li key={c.name} className="py-1">
+            <div className={`w-full px-2.5 py-2.5 rounded-lg transition ${active?'bg-lagoon/10 ring-1 ring-lagoon/35':'hover:bg-brand/20'}`}>
               <div className="flex items-baseline justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">{c.name}</p>
-                  <p className="text-[11px] text-deep/55">{c.sector}</p>
-                </div>
+                <button onClick={()=>onSel(active?null:c.name)} className="text-left min-w-0 flex-1">
+                  <p className="font-medium text-sm truncate hover:text-lagoon flex items-center gap-1.5">
+                    {c.name}
+                    <span className="text-[10px] font-grot font-bold px-1.5 py-0.5 rounded bg-lagoon/10 text-lagoon border border-lagoon/20">
+                      ₹{c.rate}/box
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-deep/55">{c.sector} · {c.phone}</p>
+                </button>
                 <div className="text-right shrink-0">
-                  <p className="font-grot text-sm">{fmtN(c.units)} <span className="text-[11px] text-deep/55">u</span></p>
-                  <p className="text-[11px] text-deep/60">{fmtINR(c.revenue)}</p>
+                  <p className="font-grot text-sm font-semibold">{fmtN(c.boxes)} <span className="text-[11px] text-deep/55 font-normal">boxes</span></p>
+                  <p className="text-[11px] text-lagoon font-grot font-medium">{fmtINR(c.revenue)}</p>
                 </div>
               </div>
-              <div className="mt-1.5 flex items-center gap-2">
+              <div className="mt-2 flex items-center justify-between gap-2">
                 <div className="h-1.5 flex-1 rounded-full bg-lagoon/10 overflow-hidden">
                   <div className="h-full rounded-full bg-lagoon" style={{width:c.pct+'%'}}/>
                 </div>
-                <span className="font-grot text-[11px] text-deep/70 w-9 text-right">{c.pct}%</span>
+                <span className="font-grot text-[11px] text-deep/70 w-8 text-right">{c.pct}%</span>
+                <button onClick={()=>onOpenStatement(c)}
+                  className="text-[10px] font-grot font-semibold px-2 py-0.5 rounded border border-lagoon/25 text-lagoon bg-white/70 hover:bg-lagoon hover:text-white transition shrink-0 ml-1">
+                  Statement
+                </button>
               </div>
-            </button>
+            </div>
           </li>);})}
       </ul>
-      <p className="mt-3 text-[11px] text-deep/50">Select an account to filter the order book below.</p>
+      <p className="mt-3 text-[11px] text-deep/50">Click an account to filter orders, or click 'Statement' to view DOCK-02 verified billing proof.</p>
     </div>);
 }
 
@@ -829,7 +837,7 @@ function OrdersTable({orders, query, selCustomer, clearSel}){
   const [all,setAll]=useState(false);
   useEffect(()=>setAll(false),[query,selCustomer]);
   const rows=all?filtered:filtered.slice(0,9);
-  const tot=filtered.reduce((a,o)=>({u:a.u+o.units,b:a.b+o.boxes,a:a.a+o.amount}),{u:0,b:0,a:0});
+  const tot=filtered.reduce((a,o)=>({b:a.b+o.boxes, blk:a.blk+(o.blocks||Math.ceil(o.boxes/2)), a:a.a+o.amount}),{b:0,blk:0,a:0});
   const pill={
     'Delivered':'bg-lagoon/10 text-lagoon border-lagoon/30',
     'In transit':'border-deep/35 text-deep/80',
@@ -841,7 +849,7 @@ function OrdersTable({orders, query, selCustomer, clearSel}){
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <p className="text-xs text-deep/60">
-          Showing {filtered.length} of {orders.length} orders
+          Showing {filtered.length} of {orders.length} vehicle loads
           {selCustomer&&<> · filtered to <b className="font-grot">{selCustomer}</b>{' '}
             <button onClick={clearSel} className="underline underline-offset-2 hover:text-coraldeep">clear</button></>}
         </p>
@@ -851,15 +859,16 @@ function OrdersTable({orders, query, selCustomer, clearSel}){
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[720px]">
-          <caption className="sr-only">Recent ice orders</caption>
+          <caption className="sr-only">Recent ice dispatch loads</caption>
           <thead>
             <tr className="text-left text-[10px] tracking-[0.14em] uppercase text-deep/55 font-grot border-b border-lagoon/20">
-              <th scope="col" className="py-2 pr-3 font-semibold">Order</th>
+              <th scope="col" className="py-2 pr-3 font-semibold">Load ID</th>
               <th scope="col" className="py-2 pr-3 font-semibold">Customer</th>
-              <th scope="col" className="py-2 px-3 font-semibold text-right">Units</th>
               <th scope="col" className="py-2 px-3 font-semibold text-right">Boxes</th>
-              <th scope="col" className="py-2 px-3 font-semibold text-right">Amount</th>
-              <th scope="col" className="py-2 px-3 font-semibold">Time</th>
+              <th scope="col" className="py-2 px-3 font-semibold text-right">Eq. Blocks</th>
+              <th scope="col" className="py-2 px-3 font-semibold text-right">Rate / Box</th>
+              <th scope="col" className="py-2 px-3 font-semibold text-right">Total (₹)</th>
+              <th scope="col" className="py-2 px-3 font-semibold">Dock Sensor Time</th>
               <th scope="col" className="py-2 pl-3 font-semibold text-right">Status</th>
             </tr>
           </thead>
@@ -867,14 +876,15 @@ function OrdersTable({orders, query, selCustomer, clearSel}){
             {rows.map(o=>(
               <tr key={o.id} className="hover:bg-brand/15 transition">
                 <td className="py-2.5 pr-3 font-grot font-medium whitespace-nowrap">{o.id}{o.live&&<span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-lagoon live-pulse align-middle" aria-label="live"/>}</td>
-                <td className="py-2.5 pr-3">{o.customer}</td>
-                <td className="py-2.5 px-3 text-right font-grot tabular-nums">{fmtN(o.units)}</td>
-                <td className="py-2.5 px-3 text-right font-grot tabular-nums">{o.boxes}</td>
-                <td className="py-2.5 px-3 text-right font-grot tabular-nums whitespace-nowrap">{fmtINR(o.amount)}</td>
+                <td className="py-2.5 pr-3 font-medium">{o.customer}</td>
+                <td className="py-2.5 px-3 text-right font-grot tabular-nums font-semibold">{o.boxes}</td>
+                <td className="py-2.5 px-3 text-right font-grot tabular-nums text-deep/70">{o.blocks || Math.ceil(o.boxes/2)}</td>
+                <td className="py-2.5 px-3 text-right font-grot tabular-nums text-deep/80">₹{o.rate || 80}</td>
+                <td className="py-2.5 px-3 text-right font-grot tabular-nums whitespace-nowrap font-bold text-lagoon">{fmtINR(o.amount)}</td>
                 <td className="py-2.5 px-3 text-xs text-deep/60 whitespace-nowrap">{o.timeLabel}</td>
                 <td className="py-2.5 pl-3 text-right">
                   <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${pill[o.status]}`}>
-                    {o.status==='Crushing'&&<span className="w-1.5 h-1.5 rounded-full bg-lagoon live-pulse"/>}
+                    {o.status==='Loading bay'&&<span className="w-1.5 h-1.5 rounded-full bg-lagoon live-pulse"/>}
                     {o.status}
                   </span>
                 </td>
@@ -882,16 +892,128 @@ function OrdersTable({orders, query, selCustomer, clearSel}){
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-lagoon/25 font-grot text-[13px]">
-              <td colSpan="2" className="py-2.5 pr-3 text-deep/60">Totals — filtered</td>
-              <td className="py-2.5 px-3 text-right tabular-nums">{fmtN(tot.u)}</td>
-              <td className="py-2.5 px-3 text-right tabular-nums">{tot.b}</td>
-              <td className="py-2.5 px-3 text-right tabular-nums">{fmtINR(tot.a)}</td>
+              <td colSpan="2" className="py-2.5 pr-3 text-deep/60">Totals — filtered loads</td>
+              <td className="py-2.5 px-3 text-right tabular-nums font-bold">{tot.b}</td>
+              <td className="py-2.5 px-3 text-right tabular-nums">{tot.blk}</td>
+              <td className="py-2.5 px-3 text-right text-xs text-deep/50">—</td>
+              <td className="py-2.5 px-3 text-right tabular-nums font-bold text-lagoon">{fmtINR(tot.a)}</td>
               <td colSpan="2"/>
             </tr>
           </tfoot>
         </table>
       </div>
     </div>);
+}
+
+/* ===================== CUSTOMER STATEMENT MODAL ===================== */
+function StatementModal({customer, plant, orders, range, onClose}){
+  if(!customer) return null;
+  const custOrders = orders.filter(o => o.customer === customer.name);
+  const totalBoxes = custOrders.reduce((a,o)=>a+o.boxes, 0);
+  const totalBlocks = custOrders.reduce((a,o)=>a+(o.blocks||Math.ceil(o.boxes/2)), 0);
+  const totalAmt = custOrders.reduce((a,o)=>a+o.amount, 0);
+
+  return (
+    <div className="fixed inset-0 bg-abyss/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#FAFDFD] border border-lagoon/25 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>
+        <div className="flex items-start justify-between border-b border-lagoon/15 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Logo size={24}/>
+              <span className="font-grot font-bold text-lg text-abyss">IceFlow Plant OS</span>
+              <span className="text-[10px] font-grot px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold uppercase tracking-wider flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 live-pulse"/> Verified Statement
+              </span>
+            </div>
+            <p className="text-xs text-deep/60 mt-1 font-grot">
+              {plant.name} · Loading Gate {plant.dock || 'DOCK-02'} · Telemetry Period: Last {range} days
+            </p>
+          </div>
+          <button onClick={onClose} className="icon-btn" aria-label="Close statement"><I n="x" className="w-4 h-4"/></button>
+        </div>
+
+        {/* Customer Header & Legal Badge */}
+        <div className="bg-brand/10 border border-brand/30 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="overline text-deep/60">Billed Account</p>
+            <h3 className="font-grot font-bold text-xl text-deep">{customer.name}</h3>
+            <p className="text-xs text-deep/70">{customer.sector} · Phone: {customer.phone}</p>
+          </div>
+          <div className="text-right">
+            <p className="overline text-deep/60">Agreed Contract Rate</p>
+            <p className="font-grot font-bold text-2xl text-lagoon">₹{customer.rate} <span className="text-xs font-sans font-normal text-deep/60">/ box</span></p>
+            <p className="text-[10px] text-deep/50">1 Block (50 kg) = 2 Boxes (25 kg)</p>
+          </div>
+        </div>
+
+        <div className="bg-emerald-50/80 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-900 flex items-center gap-2">
+          <span className="w-4 h-4 rounded-full bg-emerald-600 text-white grid place-items-center text-[10px] font-bold shrink-0">✓</span>
+          <div>
+            <p className="font-semibold font-grot">Counted &amp; Verified at DOCK-02 by IceFlow Optical Proximity Gate</p>
+            <p className="text-[11px] text-emerald-800/80">Every loaded box is registered via optical debounce (1,200 ms) as it crosses into the vehicle ramp. Zero post-departure volume discrepancies.</p>
+          </div>
+        </div>
+
+        {/* Summary figures */}
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="border border-lagoon/15 rounded-xl p-3 bg-white/60">
+            <p className="overline">Total Delivered</p>
+            <p className="font-grot font-bold text-2xl mt-0.5 text-deep">{totalBoxes} <span className="text-xs font-normal text-deep/55">boxes</span></p>
+          </div>
+          <div className="border border-lagoon/15 rounded-xl p-3 bg-white/60">
+            <p className="overline">Crushed Blocks</p>
+            <p className="font-grot font-bold text-2xl mt-0.5 text-lagoon">{totalBlocks} <span className="text-xs font-normal text-deep/55">blocks</span></p>
+          </div>
+          <div className="border border-lagoon/15 rounded-xl p-3 bg-white/60">
+            <p className="overline">Total Billed</p>
+            <p className="font-grot font-bold text-2xl mt-0.5 text-emerald-700">{fmtINR(totalAmt)}</p>
+          </div>
+        </div>
+
+        {/* Order log for this customer */}
+        <div>
+          <p className="overline mb-2">Gate Dispatch Records ({custOrders.length} dispatches)</p>
+          <div className="border border-lagoon/15 rounded-xl overflow-hidden text-xs max-h-48 overflow-y-auto">
+            <table className="w-full text-left">
+              <thead className="bg-lagoon/5 border-b border-lagoon/15 font-grot text-[10px] uppercase text-deep/60 sticky top-0 bg-[#FAFDFD]">
+                <tr>
+                  <th className="p-2.5">Load ID</th>
+                  <th className="p-2.5">Gate Timestamp</th>
+                  <th className="p-2.5 text-right">Boxes</th>
+                  <th className="p-2.5 text-right">Rate</th>
+                  <th className="p-2.5 text-right">Amount</th>
+                  <th className="p-2.5 text-right">Gate Proof</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-lagoon/10">
+                {custOrders.map(o=>(
+                  <tr key={o.id} className="hover:bg-brand/10">
+                    <td className="p-2.5 font-grot font-medium">{o.id}</td>
+                    <td className="p-2.5 text-deep/60">{o.timeLabel}</td>
+                    <td className="p-2.5 text-right font-grot font-semibold">{o.boxes}</td>
+                    <td className="p-2.5 text-right font-grot">₹{o.rate || customer.rate}</td>
+                    <td className="p-2.5 text-right font-grot font-bold text-lagoon">{fmtINR(o.amount)}</td>
+                    <td className="p-2.5 text-right">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-grot font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        <I n="check" className="w-3 h-3"/> DOCK-02
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="pt-2 flex items-center justify-between text-xs text-deep/50 border-t border-lagoon/15">
+          <span>Firmware v1.3.2 · Debounced IR Pulse Verified · Legal Proof of Delivery</span>
+          <button onClick={onClose} className="h-9 px-4 rounded-lg bg-lagoon text-white font-grot font-semibold text-xs hover:bg-deep transition">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ============================ LOGIN SCREEN ============================ */
@@ -1314,6 +1436,7 @@ function Dashboard({session, onLogout}){
   const stats=useMemo(()=>rangeStats(days,n),[days,n]);
   const [query,setQuery]=useState('');
   const [selCustomer,setSelCustomer]=useState(null);
+  const [statementCust,setStatementCust]=useState(null);
   const [bellOpen,setBellOpen]=useState(false);
   const [notes,setNotes]=useState(NOTES);
   const [navOpen,setNavOpen]=useState(false);
@@ -1458,32 +1581,33 @@ function Dashboard({session, onLogout}){
   };
 
   const exportCSV=()=>{
-    const rows=[['Order ID','Customer','Ice units','Boxes','Amount (INR)','Time','Status']];
+    const rows=[['Load ID','Customer','Boxes','Blocks','Rate / Box (INR)','Total Amount (INR)','Dock Sensor Time','Gate Status']];
     orders.filter(o=>{
       if(selCustomer&&o.customer!==selCustomer) return false;
       if(query){ const q=query.toLowerCase();
         return o.customer.toLowerCase().includes(q)||o.id.toLowerCase().includes(q); }
       return true;
-    }).forEach(o=>rows.push([o.id,o.customer,o.units,o.boxes,o.amount,o.timeLabel,o.status]));
+    }).forEach(o=>rows.push([o.id,o.customer,o.boxes,o.blocks||Math.ceil(o.boxes/2),o.rate||80,o.amount,o.timeLabel,o.status]));
     const orderCount=rows.length-1;
-    rows.push([],['Range','last '+n+' days'],['Total units',stats.units],
-      ['Revenue @ ₹80/unit',stats.revenue],['Boxes',stats.boxes],
-      ['Units/box',UNITS_PER_BOX],['Active customers',stats.customers.length]);
+    rows.push([],['Range','last '+n+' days'],['Total boxes',stats.boxes],
+      ['Total blocks crushed',stats.blocks],['Total revenue (INR)',stats.revenue],
+      ['Boxes per 50kg block',plant.boxesPerBlock || 2],['Gate Sensor',plant.dock || 'DOCK-02'],
+      ['Active customers',stats.customers.length]);
     const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-    const a=document.createElement('a'); a.href=url; a.download=`iceflow-${plant.id}-orders-${range}.csv`;
+    const a=document.createElement('a'); a.href=url; a.download=`iceflow-${plant.id}-dispatches-${range}.csv`;
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    pushToast(`Order book exported — ${orderCount} orders in CSV`);
+    pushToast(`Order book exported — ${orderCount} dispatches in CSV`);
   };
 
   const unread=notes.filter(x=>x.unread).length;
   const up=stats.delta>=0;
-  const sparkVs=days.slice(-14).map(d=>d.units);
+  const sparkVs=days.slice(-14).map(d=>d.boxes);
   const sMin=Math.min(...sparkVs), sMax=Math.max(...sparkVs);
   const sPt=(v,i)=>`${(i/(sparkVs.length-1))*140},${36-((v-sMin)/((sMax-sMin)||1))*28}`;
   const initials=c=>c.name.split(' ').map(w=>w[0]).slice(0,2).join('');
   const staged=Math.max(4,Math.round(stats.boxes*0.03));
-  const todayBoxes=Math.round(days.at(-1).units/25);
+  const todayBoxes=days.at(-1).boxes;
 
   return (
     <div className="min-h-screen">
@@ -1559,7 +1683,7 @@ function Dashboard({session, onLogout}){
                 </button>
               </div>
               <h1 className="font-grot text-3xl sm:text-4xl font-bold mt-1.5 tracking-tight">Keep the cold moving.</h1>
-              <p className="text-sm text-deep/65 mt-1.5 max-w-xl">Every box weighed &amp; counted at PK-01 by the edge device — priced at ₹80 per unit, 25 units per box, {todayBoxes} boxes today.</p>
+              <p className="text-sm text-deep/65 mt-1.5 max-w-xl">Every box counted at DOCK-02 by the optical proximity sensor — individualized contract pricing, 1 block = 2 boxes, {todayBoxes} boxes loaded today.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative w-full sm:w-60">
@@ -1610,10 +1734,10 @@ function Dashboard({session, onLogout}){
             <div className="glass p-5 md:col-span-6 flex flex-col">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="overline flex items-center gap-1.5">Total ice sold — last {n} days
+                  <p className="overline flex items-center gap-1.5">Boxes Counted (DOCK-02) — last {n} days
                     {live&&dev.online&&<span className="w-1.5 h-1.5 rounded-full bg-lagoon live-pulse" aria-label="live"/>}</p>
                   <p className="font-grot text-[2.6rem] leading-none mt-1.5 tabular-nums">
-                    {fmtN(stats.units)}<span className="text-base font-sans font-normal text-deep/55"> units</span></p>
+                    {fmtN(stats.boxes)}<span className="text-base font-sans font-normal text-deep/55"> boxes</span></p>
                 </div>
                 <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-grot font-medium ${up?'bg-lagoon/10 text-lagoon':'bg-coral/10 text-coraldeep'}`}>
                   <I n={up?'up':'down'} className="w-3.5 h-3.5"/>{Math.abs(stats.delta).toFixed(1)}%<span className="opacity-60 font-sans">vs prior</span>
@@ -1625,15 +1749,15 @@ function Dashboard({session, onLogout}){
               </svg>
               <div className="mt-auto pt-3 border-t border-lagoon/15 flex flex-wrap items-end justify-between gap-2">
                 <div>
-                  <p className="overline">Revenue @ ₹80 / unit</p>
+                  <p className="overline">Total Billed Revenue</p>
                   <p className="font-grot text-2xl text-lagoon mt-0.5 tabular-nums">{fmtINR(stats.revenue)}</p>
                 </div>
-                <p className="text-xs text-deep/60">{stats.boxes} boxes · {UNITS_PER_BOX} units / box</p>
+                <p className="text-xs text-deep/60">{stats.blocks} crushed blocks (1 block = 2 boxes)</p>
               </div>
             </div>
             <div className="glass p-5 md:col-span-3 flex flex-col">
-              <p className="overline">Boxes handled</p>
-              <p className="font-grot text-4xl mt-1.5 tabular-nums">{fmtN(stats.boxes)}</p>
+              <p className="overline">Blocks Crushed</p>
+              <p className="font-grot text-4xl mt-1.5 tabular-nums">{fmtN(stats.blocks)}</p>
               <div className="mt-3">
                 <div className="h-2 rounded-full bg-brand/25 overflow-hidden">
                   <div className="h-full rounded-full bg-lagoon" style={{width:`${100-(100*staged/Math.max(1,stats.boxes))}%`}}/>
@@ -1642,10 +1766,10 @@ function Dashboard({session, onLogout}){
                   <span>Dispatched {fmtN(stats.boxes-staged)}</span><span>Staged {staged}</span>
                 </div>
               </div>
-              <p className="mt-auto pt-3 text-[11px] text-deep/55">25 units · <b className="font-grot">₹2,000</b> value per box</p>
+              <p className="mt-auto pt-3 text-[11px] text-deep/55">1 block = 2 boxes · <b className="font-grot">DOCK-02</b> gate pulse</p>
             </div>
             <div className="glass p-5 md:col-span-3 flex flex-col">
-              <p className="overline">Active customers</p>
+              <p className="overline">Active Accounts</p>
               <p className="font-grot text-4xl mt-1.5 tabular-nums">{stats.customers.length}</p>
               <div className="flex -space-x-1.5 mt-3" aria-hidden="true">
                 {stats.customers.slice(0,3).map(c=>
@@ -1654,7 +1778,7 @@ function Dashboard({session, onLogout}){
                 {stats.customers.length>3&&
                   <span className="w-8 h-8 rounded-full bg-deep/10 border border-deep/25 text-deep/70 text-[10px] font-grot grid place-items-center">+{stats.customers.length-3}</span>}
               </div>
-              <p className="mt-auto pt-3 text-[11px] text-deep/55 truncate">Top account · <b>{stats.customers[0].name}</b> ({stats.customers[0].pct}%)</p>
+              <p className="mt-auto pt-3 text-[11px] text-deep/55 truncate">Top · <b>{stats.customers[0].name}</b> (₹{stats.customers[0].rate}/box)</p>
             </div>
           </section>
 
@@ -1663,7 +1787,7 @@ function Dashboard({session, onLogout}){
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
                   <p className="overline">Ice sales — last {n} days</p>
-                  <p className="text-xs text-deep/55 mt-0.5">Avg sale rate {fmtN(stats.units/n)} units/day · ≈ {fmtINR(stats.units/n*PRICE_PER_UNIT)}/day</p>
+                  <p className="text-xs text-deep/55 mt-0.5">Avg daily dispatch {fmtN(Math.round(stats.boxes/n))} boxes/day · ≈ {fmtINR(Math.round(stats.revenue/n))}/day</p>
                 </div>
                 <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-grot font-medium ${up?'bg-lagoon/10 text-lagoon':'bg-coral/10 text-coraldeep'}`}>
                   <I n={up?'up':'down'} className="w-3.5 h-3.5"/>{Math.abs(stats.delta).toFixed(1)}%</span>
@@ -1674,19 +1798,19 @@ function Dashboard({session, onLogout}){
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <p className="overline">Customer sales mix</p>
-                  <p className="text-xs text-deep/55 mt-0.5">{stats.customers.length} accounts · last {n} days</p>
+                  <p className="text-xs text-deep/55 mt-0.5">{stats.customers.length} accounts · individual contract rates</p>
                 </div>
                 <I n="users" className="w-4 h-4 text-lagoon/60"/>
               </div>
-              <CustomerMix customers={stats.customers} sel={selCustomer} onSel={setSelCustomer}/>
+              <CustomerMix customers={stats.customers} sel={selCustomer} onSel={setSelCustomer} onOpenStatement={setStatementCust}/>
             </div>
           </section>
 
           <section id="orders" className="glass p-5 scroll-mt-20">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <p className="overline">Recent orders</p>
-                <p className="text-xs text-deep/55 mt-0.5">Order book · amounts at ₹80 / unit · live boxes appear at top</p>
+                <p className="overline">Recent vehicle dispatches</p>
+                <p className="text-xs text-deep/55 mt-0.5">Dispatches loaded at DOCK-02 · Verified by optical proximity sensor · Live loads appear at top</p>
               </div>
               <I n="truck" className="w-4 h-4 text-lagoon/60"/>
             </div>
@@ -1698,17 +1822,21 @@ function Dashboard({session, onLogout}){
               <p className="overline">Plant floor</p>
               <h2 className="font-grot text-xl font-semibold mt-0.5">Crush, pack &amp; load-out — live</h2>
             </div>
-            <p className="text-xs text-deep/55 max-w-xs text-right hidden sm:block">Slabs leave the brine moulds by gantry crane, get crushed, packed in lined boxes and loaded into sealed cold vans. PK-01 is where the IceFlow device counts every box. Click any stage to inspect it.</p>
+            <p className="text-xs text-deep/55 max-w-xs text-right hidden sm:block">Slabs leave the brine moulds by gantry crane, get crushed (50 kg slab = 2 boxes), packed in lined boxes and loaded into cold vans. DOCK-02 is where the IceFlow proximity gate counts every box as proof of delivery.</p>
           </div>
           <ProductionLine/>
 
           <footer className="glass p-4 flex flex-wrap items-center gap-3 text-xs text-deep/60">
             <Logo size={22}/>
-            <p className="max-w-lg">IceFlow Plant OS — real-time box verification, automated scale telemetry, and cold-chain compliance monitoring.</p>
-            <p className="ml-auto font-grot tracking-wider text-deep/50">₹80 / UNIT · 25 UNITS / BOX · {plant.device}</p>
+            <p className="max-w-lg">IceFlow Plant OS — real-time box verification, optical proximity gate telemetry, and automated cold-chain proof of delivery.</p>
+            <p className="ml-auto font-grot tracking-wider text-deep/50">1 BLOCK = 2 BOXES · DOCK-02 PROXIMITY GATE · {plant.device}</p>
           </footer>
         </div>
       </main>
+
+      {statementCust && (
+        <StatementModal customer={statementCust} plant={plant} orders={orders} range={range} onClose={()=>setStatementCust(null)}/>
+      )}
 
       <div className="fixed bottom-4 right-4 z-[60] space-y-2" aria-live="polite">
         {toasts.map(t=>(

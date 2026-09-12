@@ -2,16 +2,19 @@
 
 > Live box-count monitoring and telemetry portal for commercial ice plants.
 
-IceFlow provides box-level accounting, edge scale telemetry, customer sales mix analysis, and real-time plant floor visualization across mobile and desktop.
+IceFlow provides legal proof-of-delivery box accounting, optical proximity gate telemetry at the loading dock, individual customer contract pricing, and real-time plant floor HMI visualization across mobile and desktop.
 
 ![IceFlow Banner](https://raw.githubusercontent.com/mrayees3042-arch/ice-flow/main/preview.png)
 
 ## Features
 
-- **Live Edge Device Telemetry:** Real-time weighing and counting with RS-232 scale integration, tare tracking, power cut / outage buffer simulation, and automatic sync upon reconnect.
-- **Interactive Plant Floor HMI:** Animated visual representation of gantry crane (`CR-02`), ice crusher (`IC-01`), conveyor (`CV-03`), box packing (`PK-01`), and cold-chain sealed load-out vans (`DOCK-02`).
-- **Comprehensive Sales & Metrics:** Dynamic daily sales chart, customizable date windows (7D, 14D, 30D), customer volume/revenue breakdowns, and live order book with CSV export.
-- **Operator Station View:** Dedicated mobile-friendly packing bench touch UI with 1-tap customer attribution, manual count overrides, and instant undo.
+- **DOCK-02 Optical Proximity Telemetry:** Real-time counting via optical infrared proximity sensor at the vehicle loading ramp with 1,200 ms debounce filtering (filtering conveyor bounce and damp box wobble). Power cut / outage buffer simulation with automatic sync upon reconnect.
+- **Yield & Box Economics:** Real-time accounting based on 50 kg commercial ice blocks (1 crushed block = 2 boxes of 25 kg each). Eliminates abstract "units" in favor of concrete box tallies and block crush metrics.
+- **Individual Customer Contract Pricing:** Flexible per-customer billing (e.g. ₹75 to ₹90 / box contract rates) replacing flat rates.
+- **Operator Station & Van Batching:** Dedicated touch UI for dock operators with 1-tap customer selection, live van load accumulation, vehicle seal & close dispatch button, manual bypass, and instant undo.
+- **Verified Customer Statement:** One-click legal proof-of-delivery statement for customer accounts with timestamps, box count, block equivalents, and agreed contract rates.
+- **Interactive Plant Floor HMI:** Animated SVG simulation of gantry crane (`CR-02`), ice crusher (`IC-01`), conveyor (`CV-03`), box packing (`PK-01`), and cold-chain sealed load-out vans (`DOCK-02`).
+- **Owner Dashboard & Orders:** Dynamic box dispatch chart, customizable date windows (7D, 14D, 30D), customer volume/revenue breakdowns, and live order book with CSV export.
 - **Role-based Authentication:** Instant switching between **Plant Owner**, **Operator**, and **Service Admin** views.
 
 ## Architecture & Integration Points
@@ -22,7 +25,7 @@ The application is engineered with explicit swap points for enterprise deploymen
 2. **Plant Historical API:** Connect `buildData` and `buildOrders` to your backend REST/GraphQL endpoints:
    - `GET /api/plants/{plantId}/daily?days=60`
    - `GET /api/plants/{plantId}/orders`
-3. **Live Box Stream:** Replace `useBoxStream` with an SSE or MQTT-over-WebSocket client subscribed to `plant/{plantId}/box_done` (`{ ts, w_kg, units }`).
+3. **Live Box Stream:** Replace `useBoxStream` with an SSE or MQTT-over-WebSocket client subscribed to `plant/{plantId}/box_done` (`{ ts, ci, debounced }`).
 4. **Edge Telemetry:** Bind `dev` state to real ESP32 / industrial gateway heartbeat telemetry (RSSI, offline buffer depth, power source).
 
 ## Getting Started
