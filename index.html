@@ -1059,7 +1059,7 @@ function StationView({plant, onLogout}){
 /* ============================ DEVICE STRIP ============================ */
 function DeviceStrip({plant, dev, live, feed, attrib, setAttrib, nowTs, onToggle, onOutage}){
   const ago=ts=>{ const s=Math.max(0,Math.round((nowTs-ts)/1000));
-    return s<4?'just now':s<60?s+' s ago':Math.floor(s/60)+' m ago'; };
+    return s<2?'just now':s<60?s+'s ago':Math.floor(s/60)+'m ago'; };
   const chips=[
     ['Heartbeat', !live?'—': dev.online?ago(dev.lastBeat):'offline '+ago(dev.lastBeat)],
     ['Buffer',    dev.pending>0?dev.pending+' events pending':'0 pending'],
@@ -1116,7 +1116,14 @@ function DeviceStrip({plant, dev, live, feed, attrib, setAttrib, nowTs, onToggle
         </div>
         <div className="min-w-0">
           <p className="overline mb-1">Recent line telemetry</p>
-          {feed.length===0
+          {!dev.online&&dev.pending>0&&(
+            <div className="mb-2 flex items-center gap-2 text-xs bg-coral/10 border border-coral/30 rounded-lg px-2.5 py-1.5 text-coraldeep">
+              <span className="w-2 h-2 rounded-full bg-coral live-pulse"/>
+              <span className="font-grot font-medium">Buffering locally ({dev.pending} box{dev.pending===1?'':'es'} on device)</span>
+              <span className="ml-auto font-grot text-[10px] uppercase tracking-wider text-coraldeep/70">Sync pending</span>
+            </div>
+          )}
+          {feed.length===0&&(!dev.pending||dev.online)
             ?<p className="text-xs text-deep/50">Awaiting live box sensor events...</p>
             :<ul className="space-y-1">
               {feed.map(ev=>(
@@ -1210,11 +1217,18 @@ function Dashboard({session, onLogout}){
   const fire=useRef(()=>{}); fire.current=emitBox;
   useBoxStream(live, fire);
 
-  /* heartbeat + 1 s ticker (drives "Xs ago" and outage clock) */
+  /* heartbeat + 1 s ticker (drives "Xs ago" and outage clock with realistic interval) */
   useEffect(()=>{
     if(!live) return;
-    const id=setInterval(()=>{ setNowTs(Date.now());
-      setDev(d=>d.online&&Date.now()-d.lastBeat>5000?{...d,lastBeat:Date.now()}:d); },1000);
+    let nextBeat = Date.now() + 6000 + Math.random()*5000;
+    const id=setInterval(()=>{
+      const now = Date.now();
+      setNowTs(now);
+      if(onlineRef.current && now >= nextBeat){
+        setDev(d=>({...d,lastBeat:now}));
+        nextBeat = now + 6000 + Math.random()*6000;
+      }
+    },1000);
     return()=>clearInterval(id);
   },[live]);
 
