@@ -118,22 +118,25 @@ tailwind.config = {
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
 /* =====================================================================
-   IceFlow Plant OS — Configuration & State Models
+   IceFlow Plant OS — Commercial Ice Plant Configuration & Models
+   1 block = 2 boxes (50 kg block = two 25 kg boxes)
+   Proof of delivery sensor counting at DOCK-02 loading ramp
 ===================================================================== */
-const PRICE_PER_UNIT = 80, UNITS_PER_BOX = 25, KG_PER_UNIT = 2;
+const DEFAULT_PRICE_PER_BOX = 80;
+const BOXES_PER_BLOCK = 2; // Plant nominal yield: 1 crushed block = 2 boxes
 
 const CUSTOMERS = [
-  { name:'Kaveri Fisheries',       short:'Kaveri',    sector:'Seafood export',     w:.28 },
-  { name:'Anand Cold Storage',     short:'Anand',     sector:'3PL cold chain',     w:.22 },
-  { name:'Bluewave Sea Foods',     short:'Bluewave',  sector:'Seafood processing', w:.18 },
-  { name:'Meridian Grand Hotel',   short:'Meridian',  sector:'Hospitality',        w:.14 },
-  { name:'Sri Balaji Ice House',   short:'Balaji',    sector:'Trade supplier',     w:.11 },
-  { name:'Coastline Catering Co.', short:'Coastline', sector:'Catering',           w:.07 },
+  { name:'Kaveri Fisheries',       short:'Kaveri',    rate:75, phone:'+91 94431 88210', sector:'Bulk seafood export',     w:.28 },
+  { name:'Anand Cold Storage',     short:'Anand',     rate:78, phone:'+91 98422 10450', sector:'3PL cold chain',         w:.22 },
+  { name:'Bluewave Sea Foods',     short:'Bluewave',  rate:80, phone:'+91 97890 34120', sector:'Seafood processing',     w:.18 },
+  { name:'Meridian Grand Hotel',   short:'Meridian',  rate:90, phone:'+91 94420 55670', sector:'Hospitality walk-in',    w:.14 },
+  { name:'Sri Balaji Ice House',   short:'Balaji',    rate:75, phone:'+91 98411 90230', sector:'Trade depot partner',     w:.11 },
+  { name:'Coastline Catering Co.', short:'Coastline', rate:85, phone:'+91 99440 12890', sector:'Events & catering',      w:.07 },
 ];
 
 const PLANTS = [
-  { id:'P1', name:'Tuticorin — Line 01', device:'EF-01', seed:20240612, oseed:77031, obase:2501, scale:1 },
-  { id:'P2', name:'Madurai — Line 02',   device:'EF-02', seed:515031,  oseed:91277, obase:2901, scale:.65 },
+  { id:'P1', name:'Tuticorin — Line 01', device:'EF-01', dock:'DOCK-02', boxesPerBlock:2, seed:20240612, oseed:77031, obase:2501, scale:1 },
+  { id:'P2', name:'Madurai — Line 02',   device:'EF-02', dock:'DOCK-01', boxesPerBlock:2, seed:515031,  oseed:91277, obase:2901, scale:.65 },
 ];
 
 function mulberry32(seed){ return function(){ seed|=0; seed=(seed+0x6D2B79F5)|0;
@@ -155,19 +158,22 @@ function timeLabel(d){
 function buildData(plant){
   const rnd = mulberry32(plant.seed);
   const today = startOfDay(new Date());
+  const bpb = plant.boxesPerBlock || BOXES_PER_BLOCK;
   const days = [];
   for(let i=59;i>=0;i--){
     const d=new Date(today); d.setDate(d.getDate()-i);
     const dow=d.getDay();
-    const base=(330+(59-i)*1.15+((dow===5||dow===6)?55:0)+(dow===2?-28:0))*plant.scale;
-    const units=Math.max(120, Math.round((base+(rnd()-.5)*110)/5)*5);
-    const byCustomer=CUSTOMERS.map(()=>0); let rem=units;
+    const base=(140+(59-i)*0.45+((dow===5||dow===6)?25:0)+(dow===2?-12:0))*plant.scale;
+    const boxes=Math.max(60, Math.round((base+(rnd()-.5)*40)));
+    const blocks=Math.round(boxes / bpb);
+    const byCustomer=CUSTOMERS.map(()=>0); let rem=boxes;
     for(let ci=0;ci<CUSTOMERS.length-1;ci++){
-      let v=Math.round(units*CUSTOMERS[ci].w*(0.8+rnd()*0.4)/5)*5;
+      let v=Math.round(boxes*CUSTOMERS[ci].w*(0.8+rnd()*0.4));
       v=Math.max(0,Math.min(v,rem)); byCustomer[ci]=v; rem-=v;
     }
     byCustomer[CUSTOMERS.length-1]=rem;
-    days.push({date:d, units, byCustomer});
+    const revenue = byCustomer.reduce((sum, b, ci) => sum + b * CUSTOMERS[ci].rate, 0);
+    days.push({date:d, boxes, blocks, byCustomer, revenue});
   }
   return days;
 }
@@ -175,11 +181,14 @@ function buildData(plant){
 function buildOrders(plant){
   const rnd=mulberry32(plant.oseed); const list=[];
   const now = new Date();
+  const bpb = plant.boxesPerBlock || BOXES_PER_BLOCK;
   for(let di=53;di<=59;di++){
     const n=3+Math.floor(rnd()*3);
     for(let k=0;k<n;k++){
       let r=rnd(), ci=0; for(;ci<CUSTOMERS.length-1;ci++){ r-=CUSTOMERS[ci].w; if(r<=0) break; }
-      const units=(2+Math.floor(rnd()*18))*25;
+      const cust = CUSTOMERS[ci];
+      const boxes=10+Math.floor(rnd()*35); // 10 to 45 boxes per load
+      const blocks=Math.ceil(boxes / bpb);
       const when=new Date();
       const day=new Date(); day.setDate(day.getDate()-(59-di));
       when.setTime(day.getTime());
@@ -201,27 +210,28 @@ function buildOrders(plant){
       }
       else if(di===58) status = s<.6?'Delivered':'In transit';
       else             status = 'Delivered';
-      list.push({customer:CUSTOMERS[ci].name, units, when, status});
+      list.push({customer:cust.name, customerObj:cust, boxes, blocks, rate:cust.rate, amount:boxes*cust.rate, when, status});
     }
   }
   list.sort((a,b)=>b.when-a.when);
-  list.forEach((o,i)=>{ o.id='OI-'+(plant.obase-i); o.boxes=Math.ceil(o.units/UNITS_PER_BOX);
-    o.amount=o.units*PRICE_PER_UNIT; o.timeLabel=timeLabel(o.when); });
+  list.forEach((o,i)=>{ o.id='LD-'+(plant.obase-i); o.timeLabel=timeLabel(o.when); });
   return list;
 }
 
 function rangeStats(days, n){
   const cur=days.slice(-n), prev=days.slice(-2*n,-n);
-  const units=cur.reduce((s,d)=>s+d.units,0);
-  const prevUnits=prev.reduce((s,d)=>s+d.units,0)||1;
-  const boxes=Math.max(1,Math.round(units/UNITS_PER_BOX));
-  const customers=CUSTOMERS.map((c,ci)=>({name:c.name,sector:c.sector,units:cur.reduce((s,d)=>s+d.byCustomer[ci],0)}))
-    .map(c=>({...c, revenue:c.units*PRICE_PER_UNIT})).filter(c=>c.units>0)
-    .sort((a,b)=>b.units-a.units);
-  const tot=customers.reduce((s,c)=>s+c.units,0)||1;
+  const boxes=cur.reduce((s,d)=>s+d.boxes,0);
+  const prevBoxes=prev.reduce((s,d)=>s+d.boxes,0)||1;
+  const blocks=cur.reduce((s,d)=>s+d.blocks,0);
+  const customers=CUSTOMERS.map((c,ci)=>{
+    const custBoxes=cur.reduce((s,d)=>s+d.byCustomer[ci],0);
+    return { name:c.name, short:c.short, rate:c.rate, phone:c.phone, sector:c.sector, boxes:custBoxes, revenue:custBoxes*c.rate };
+  }).filter(c=>c.boxes>0).sort((a,b)=>b.boxes-a.boxes);
+  const revenue=customers.reduce((s,c)=>s+c.revenue,0);
+  const tot=customers.reduce((s,c)=>s+c.boxes,0)||1;
   let sumPct = 0;
   const withFrac = customers.map(c => {
-    const raw = (100 * c.units) / tot;
+    const raw = (100 * c.boxes) / tot;
     const floor = Math.floor(raw);
     sumPct += floor;
     return { c, floor, frac: raw - floor };
@@ -230,8 +240,7 @@ function rangeStats(days, n){
   withFrac.slice().sort((a, b) => b.frac - a.frac).forEach((item, idx) => {
     item.c.pct = item.floor + (idx < rem ? 1 : 0);
   });
-  return { units, revenue:units*PRICE_PER_UNIT, boxes, avg:UNITS_PER_BOX,
-    delta:(units-prevUnits)/prevUnits*100, perDay:cur, priorPerDay:prev, customers };
+  return { boxes, blocks, revenue, delta:(boxes-prevBoxes)/prevBoxes*100, perDay:cur, priorPerDay:prev, customers };
 }
 
 /* ============================ ICONS ============================ */
@@ -1197,22 +1206,40 @@ function Dashboard({session, onLogout}){
     setLive(true);
   },[plant]);
 
-  const applyBox=useCallback(({ts,w,ci})=>{
-    setDays(prev=>{ const cp=prev.slice(); const last={...cp[cp.length-1]};
-      last.units+=25; const bc=last.byCustomer.slice(); bc[ci]+=25; last.byCustomer=bc;
-      cp[cp.length-1]=last; return cp; });
-    setOrders(prev=>[{id:'OI-'+(nextOrd.current++), customer:CUSTOMERS[ci].name, units:25, boxes:1,
-      amount:25*PRICE_PER_UNIT, when:ts, status:'Loading bay', timeLabel:timeLabel(ts), live:true}, ...prev]);
-    setFeed(f=>[{n:boxNo.current++, w, ts, ci}, ...f].slice(0,6));
-  },[]);
+  const applyBox=useCallback(({ts,ci,debounced})=>{
+    const cust = CUSTOMERS[ci];
+    const bpb = plant.boxesPerBlock || BOXES_PER_BLOCK;
+    setDays(prev=>{
+      const cp=prev.slice(); const last={...cp[cp.length-1]};
+      last.boxes += 1;
+      last.blocks = Math.round(last.boxes / bpb);
+      const bc=last.byCustomer.slice(); bc[ci]+=1; last.byCustomer=bc;
+      last.revenue += cust.rate;
+      cp[cp.length-1]=last; return cp;
+    });
+    setOrders(prev=>{
+      if(prev.length && prev[0].customer === cust.name && prev[0].status === 'Loading bay'){
+        const top = { ...prev[0] };
+        top.boxes += 1;
+        top.blocks = Math.ceil(top.boxes / bpb);
+        top.amount = top.boxes * cust.rate;
+        top.when = ts;
+        top.timeLabel = timeLabel(ts);
+        return [top, ...prev.slice(1)];
+      }
+      return [{id:'LD-'+(nextOrd.current++), customer:cust.name, customerObj:cust, boxes:1,
+        blocks:1, rate:cust.rate, amount:cust.rate, when:ts, status:'Loading bay', timeLabel:timeLabel(ts), live:true}, ...prev];
+    });
+    setFeed(f=>[{n:boxNo.current++, ts, ci, rate:cust.rate, debounced}, ...f].slice(0,6));
+  },[plant]);
 
   const emitBox=useCallback(()=>{
     const ci=attrib==='auto'?weightedCi():+attrib;
-    const w=+(KG_PER_UNIT*UNITS_PER_BOX+1.85+Math.random()*2.4-1.2).toFixed(2);
     const ts=new Date();
-    if(!onlineRef.current){ buffer.current.push({ts,w,ci});
+    const debounced = Math.random() < 0.12;
+    if(!onlineRef.current){ buffer.current.push({ts,ci,debounced});
       setDev(d=>({...d,pending:buffer.current.length})); return; }
-    applyBox({ts,w,ci});
+    applyBox({ts,ci,debounced});
   },[attrib,applyBox]);
   const fire=useRef(()=>{}); fire.current=emitBox;
   useBoxStream(live, fire);
