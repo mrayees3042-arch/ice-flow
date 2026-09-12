@@ -965,7 +965,7 @@ function LoginScreen({onLogin}){
             </div>
           </div>
         </div>
-        <p className="text-center text-[10px] text-deep/45 mt-4 font-grot tracking-wider">ICEFLOW SERVICE · ₹80 / UNIT · 25 UNITS / BOX</p>
+        <p className="text-center text-[10px] text-deep/45 mt-4 font-grot tracking-wider">ICEFLOW PLANT OS · ₹80 / BOX (BASE CONTRACT) · 1 BLOCK = 2 BOXES · DOCK-02 GATE</p>
       </div>
     </div>);
 }
@@ -973,93 +973,226 @@ function LoginScreen({onLogin}){
 /* ============================ OPERATOR STATION ============================ */
 function StationView({plant, onLogout}){
   const reduced=usePrefersReducedMotion();
+  const bpb = plant.boxesPerBlock || 2;
   const base=useMemo(()=>buildData(plant).at(-1).byCustomer,[plant]);
   const [counts,setCounts]=useState(base);
   const [un,setUn]=useState(0);
   const [sel,setSel]=useState(null);
   const [events,setEvents]=useState([]);
   const [last,setLast]=useState(null);
+  const [currentLoad,setCurrentLoad]=useState(0);
+  const [vanTrip,setVanTrip]=useState(14);
+  const [sealNotice,setSealNotice]=useState(null);
   const boxNo=useRef(141);
   const selRef=useRef(sel); selRef.current=sel;
 
-  const rec=(ci,w,manual)=>{
-    if(ci!=null) setCounts(c=>{ const n=c.slice(); n[ci]+=25; return n; });
-    else setUn(u=>u+25);
-    const ev={ci,w:manual?null:w,ts:new Date(),manual,n:boxNo.current++};
-    setEvents(e=>[ev,...e].slice(0,30)); setLast(ev);
+  const rec=(ci,manual)=>{
+    if(ci!=null){
+      setCounts(c=>{ const n=c.slice(); n[ci]+=1; return n; });
+      setCurrentLoad(l=>l+1);
+    } else {
+      setUn(u=>u+1);
+    }
+    const cust=ci!=null?CUSTOMERS[ci]:null;
+    const ev={ci,ts:new Date(),manual,n:boxNo.current++,rate:cust?cust.rate:80};
+    setEvents(e=>[ev,...e].slice(0,30));
+    setLast(ev);
   };
   const fire=useRef(()=>{});
-  fire.current=()=>rec(selRef.current, +(KG_PER_UNIT*UNITS_PER_BOX+1.85+Math.random()*2.4-1.2).toFixed(2), false);
+  fire.current=()=>rec(selRef.current, false);
   useBoxStream(true, fire);
 
   const undo = () => {
     if (!events.length) return;
     const ev = events[0];
     setEvents(e => e.slice(1));
-    if (ev.ci != null) setCounts(c => { const n = c.slice(); n[ev.ci] = Math.max(0, n[ev.ci] - 25); return n; });
-    else setUn(u => Math.max(0, u - 25));
+    if (ev.ci != null) {
+      setCounts(c => { const n = c.slice(); n[ev.ci] = Math.max(0, n[ev.ci] - 1); return n; });
+      setCurrentLoad(l => Math.max(0, l - 1));
+    } else {
+      setUn(u => Math.max(0, u - 1));
+    }
     setLast(events[1] || null);
   };
-  const totalBoxes=Math.round((counts.reduce((a,b)=>a+b,0)+un)/25);
+
+  const handleSelectCustomer = (idx) => {
+    if(sel === idx) {
+      setSel(null);
+      setCurrentLoad(0);
+    } else {
+      setSel(idx);
+      setCurrentLoad(0);
+    }
+  };
+
+  const closeLoad = () => {
+    if(currentLoad === 0 && sel == null) return;
+    const cust = sel != null ? CUSTOMERS[sel] : null;
+    const count = currentLoad;
+    const rate = cust ? cust.rate : 80;
+    const amt = count * rate;
+    setSealNotice({
+      van: vanTrip,
+      customer: cust ? cust.name : 'Unassigned Walk-in',
+      boxes: count,
+      rate,
+      amount: amt
+    });
+    setVanTrip(t => t + 1);
+    setCurrentLoad(0);
+    setTimeout(() => setSealNotice(null), 7000);
+  };
+
+  const totalBoxes = counts.reduce((a,b)=>a+b,0) + un;
+  const totalBlocks = Math.round(totalBoxes / bpb);
+  const totalRevenue = counts.reduce((sum, b, i) => sum + b * CUSTOMERS[i].rate, 0);
+  const activeCust = sel != null ? CUSTOMERS[sel] : null;
 
   return (
     <div className="min-h-screen hmi-plain" style={{background:'#07282D'}}>
       <div className="max-w-lg mx-auto px-4 py-5">
+        {/* Terminal Header */}
         <div className="flex items-center gap-2.5">
           <Logo size={26}/>
           <div>
             <p className="font-grot font-bold text-mist leading-none">IceFlow Station</p>
-            <p className="text-[9px] tracking-[0.2em] text-brand/60 font-grot mt-0.5">{plant.device} · {plant.name}</p>
+            <p className="text-[9px] tracking-[0.2em] text-brand/60 font-grot mt-0.5">DOCK-02 GATE · {plant.name}</p>
           </div>
           <span className="ml-auto flex items-center gap-1.5 text-[10px] font-grot tracking-widest text-brand border border-brand/30 rounded px-1.5 py-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-brand live-pulse"/>SENSOR LIVE</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-brand live-pulse"/>GATE ACTIVE</span>
           <button onClick={onLogout} aria-label="Log out" className="icon-btn-dark"><I n="logout" className="w-4 h-4"/></button>
         </div>
 
-        <div className="mt-5 rounded-2xl border border-brand/20 bg-brand/5 p-4">
-          <div className="flex items-baseline justify-between">
-            <p className="overline-dark">Packing for</p>
-            <p className="text-[11px] text-brand/60 font-grot">PLANT TOTAL · {totalBoxes} BOXES</p>
+        {/* Shift Summary Bar */}
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          <div className="rounded-xl border border-brand/20 bg-brand/5 p-2.5 text-center">
+            <p className="overline-dark text-[9px]">Boxes Counted</p>
+            <p className="font-grot font-bold text-mist text-lg mt-0.5 tabular-nums">{totalBoxes}</p>
           </div>
-          <p aria-live="polite" className="font-grot font-bold text-brand text-6xl leading-none mt-2 tabular-nums">
-            {sel!=null?Math.round(counts[sel]/25):'—'}
-            {sel!=null&&<span className="text-base font-sans font-normal text-brand/60"> boxes · {CUSTOMERS[sel].short}</span>}
-          </p>
-          <p className="text-xs text-brand/60 mt-2 font-grot">
-            {last?`LAST · PK-0${last.n} · ${last.w?last.w+' kg':'manual'} · ${hhmm(last.ts)} · ${last.ci!=null?CUSTOMERS[last.ci].short:'UNASSIGNED'}`:'Waiting for first box…'}
-          </p>
+          <div className="rounded-xl border border-brand/20 bg-brand/5 p-2.5 text-center">
+            <p className="overline-dark text-[9px]">Blocks Crushed</p>
+            <p className="font-grot font-bold text-brand text-lg mt-0.5 tabular-nums">{totalBlocks}</p>
+          </div>
+          <div className="rounded-xl border border-brand/20 bg-brand/5 p-2.5 text-center">
+            <p className="overline-dark text-[9px]">Billed Today</p>
+            <p className="font-grot font-bold text-mist text-lg mt-0.5 tabular-nums">₹{totalRevenue.toLocaleString('en-IN')}</p>
+          </div>
         </div>
 
-        {sel==null&&
-          <p role="status" className="mt-3 flex items-center gap-2 text-xs font-grot tracking-wide text-[#FFA38F] border border-coral/50 bg-coral/10 rounded-lg px-3 py-2">
-            <I n="alert" className="w-4 h-4 shrink-0"/>SELECT A CUSTOMER — boxes are billed per account</p>}
+        {/* Dispatch Seal Notice */}
+        {sealNotice && (
+          <div className="mt-3 rounded-xl border border-brand/40 bg-brand/15 p-3 text-mist text-xs font-grot flex items-start gap-2.5 animate-fadeIn">
+            <span className="w-5 h-5 rounded-full bg-brand text-abyss grid place-items-center shrink-0 font-bold text-xs mt-0.5">✓</span>
+            <div>
+              <p className="font-bold text-brand text-sm">VAN #{String(sealNotice.van).padStart(2,'0')} SEALED &amp; DISPATCHED</p>
+              <p className="text-mist/80 mt-0.5">
+                {sealNotice.boxes} boxes · ₹{sealNotice.rate}/box · <b className="text-white">₹{sealNotice.amount.toLocaleString('en-IN')}</b> for {sealNotice.customer}
+              </p>
+              <p className="text-[10px] text-brand/70 mt-0.5">Dock gate reset for Van #{String(vanTrip).padStart(2,'0')}</p>
+            </div>
+          </div>
+        )}
 
-        <p className="overline-dark mt-5 mb-2">Customer</p>
-        <div className="grid grid-cols-2 gap-2">
-          {CUSTOMERS.map((c,i)=>{
-            const active=sel===i;
-            return (
-              <button key={c.name} onClick={()=>setSel(active?null:i)} aria-pressed={active}
-                className={`rounded-xl border px-3 py-3 text-left transition min-h-[4.5rem] ${
-                  active?'border-brand bg-brand text-abyss':'border-brand/25 bg-brand/5 text-mist hover:bg-brand/15'}`}>
-                <span className="block font-grot font-semibold text-base leading-tight">{c.short}</span>
-                <span className={`block text-[11px] mt-0.5 ${active?'text-abyss/70':'text-brand/60'}`}>
-                  {Math.round(counts[i]/25)} boxes today</span>
-              </button>);})}
+        {/* Active Vehicle Load Bay Card */}
+        <div className="mt-3 rounded-2xl border border-brand/25 bg-brand/10 p-4">
+          <div className="flex items-baseline justify-between">
+            <p className="overline-dark">DOCK-02 · VAN #{String(vanTrip).padStart(2,'0')}</p>
+            <p className="text-[11px] text-brand/70 font-grot">
+              {activeCust ? `${counts[sel]} boxes today` : 'NO CUSTOMER OPEN'}
+            </p>
+          </div>
+
+          {activeCust ? (
+            <div className="mt-2">
+              <div className="flex items-baseline justify-between">
+                <div>
+                  <p className="font-grot font-bold text-brand text-5xl leading-none tabular-nums">
+                    {currentLoad}
+                    <span className="text-sm font-sans font-normal text-mist/70 ml-2">boxes in van</span>
+                  </p>
+                  <p className="text-sm font-semibold text-white mt-2">
+                    {activeCust.name} <span className="text-xs text-brand font-grot font-normal px-2 py-0.5 rounded bg-brand/15 border border-brand/30">₹{activeCust.rate} / box</span>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-brand/60 font-grot uppercase tracking-wider">Load Value</p>
+                  <p className="font-grot font-bold text-mist text-2xl mt-0.5 tabular-nums">
+                    ₹{(currentLoad * activeCust.rate).toLocaleString('en-IN')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 py-2 text-center">
+              <p className="text-sm font-grot text-[#FFA38F] font-semibold flex items-center justify-center gap-1.5">
+                <I n="alert" className="w-4 h-4"/> TAP A CUSTOMER BELOW BEFORE LOADING
+              </p>
+              <p className="text-xs text-brand/60 mt-1">Sensor count will verify proof of delivery directly to selected account</p>
+            </div>
+          )}
+
+          {/* Telemetry live line */}
+          <div className="mt-3 pt-2.5 border-t border-brand/15 flex items-center justify-between text-xs text-brand/70 font-grot">
+            <span className="truncate">
+              {last ? `LAST · BOX #${last.n} · ${hhmm(last.ts)} · ${last.ci!=null?CUSTOMERS[last.ci].short:'UNASSIGNED'} · ${last.manual?'Manual':'Dock Sensor'}` : 'Waiting for sensor pulse…'}
+            </span>
+            <span className="text-[10px] text-brand/50 uppercase tracking-wider ml-2 shrink-0">1,200 ms debounce</span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 mt-4">
-          <button onClick={()=>rec(sel, null, true)}
-            className="h-14 rounded-xl bg-brand text-abyss font-grot font-bold text-base flex items-center justify-center gap-2 hover:bg-white transition">
-            <I n="plus" className="w-5 h-5"/>+1 box · manual</button>
+        {/* Load Close / Seal Button */}
+        {currentLoad > 0 && (
+          <button onClick={closeLoad}
+            className="w-full mt-3 h-14 rounded-xl bg-gradient-to-r from-brand to-[#9DE5E5] text-abyss font-grot font-bold text-base flex items-center justify-center gap-2 hover:brightness-110 shadow-lg shadow-brand/20 transition">
+            <I n="truck" className="w-5 h-5"/>
+            Close Load &amp; Seal Van #{String(vanTrip).padStart(2,'0')} ({currentLoad} boxes · ₹{(currentLoad * (activeCust ? activeCust.rate : 80)).toLocaleString('en-IN')})
+          </button>
+        )}
+
+        {/* Manual + Undo controls */}
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          <button onClick={()=>rec(sel, true)}
+            className="h-12 rounded-xl bg-brand/20 border border-brand/40 text-brand font-grot font-semibold text-sm flex items-center justify-center gap-2 hover:bg-brand/30 transition">
+            <I n="plus" className="w-4 h-4"/>+1 box · manual bypass
+          </button>
           <button onClick={undo} disabled={!events.length}
-            className="h-14 rounded-xl border border-brand/30 text-brand font-grot font-semibold text-base flex items-center justify-center gap-2 hover:bg-brand/10 transition disabled:opacity-40 disabled:hover:bg-transparent">
-            <I n="reset" className="w-5 h-5"/>Undo last</button>
+            className="h-12 rounded-xl border border-brand/20 text-brand/70 font-grot font-semibold text-sm flex items-center justify-center gap-2 hover:bg-brand/10 transition disabled:opacity-30">
+            <I n="reset" className="w-4 h-4"/>Undo last
+          </button>
         </div>
 
+        {/* Customer Select Grid */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="overline-dark">Select Account for Van Load</p>
+            <p className="text-[10px] text-brand/60 font-grot">INDIVIDUAL CONTRACT PRICING</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {CUSTOMERS.map((c,i)=>{
+              const active=sel===i;
+              return (
+                <button key={c.name} onClick={()=>handleSelectCustomer(i)} aria-pressed={active}
+                  className={`rounded-xl border p-3 text-left transition relative ${
+                    active?'border-brand bg-brand text-abyss ring-2 ring-brand/50':'border-brand/20 bg-brand/5 text-mist hover:bg-brand/15'}`}>
+                  <div className="flex items-baseline justify-between">
+                    <span className="font-grot font-semibold text-sm leading-tight truncate">{c.short}</span>
+                    <span className={`text-[10px] font-grot font-bold px-1.5 py-0.5 rounded ${active?'bg-abyss text-brand':'bg-brand/15 text-brand border border-brand/25'}`}>
+                      ₹{c.rate}/box
+                    </span>
+                  </div>
+                  <p className={`text-[10px] mt-0.5 truncate ${active?'text-abyss/70':'text-brand/55'}`}>{c.sector}</p>
+                  <p className={`text-xs font-grot font-medium mt-1.5 ${active?'text-abyss font-bold':'text-brand/80'}`}>
+                    {counts[i]} boxes · ₹{(counts[i]*c.rate).toLocaleString('en-IN')}
+                  </p>
+                </button>);
+            })}
+          </div>
+        </div>
+
+        {/* Station Footer */}
         <div className="flex items-center justify-between text-[11px] text-brand/50 mt-4 px-1">
-          <span>Scale: RS-232 · Tare 1.85 kg</span>
-          <span>Unassigned today: <b className="text-[#FFA38F] font-grot">{Math.round(un/25)}</b> boxes</span>
+          <span>Gate: DOCK-02 Optical Proximity (1,200 ms debounce)</span>
+          <span>Unassigned: <b className="text-[#FFA38F] font-grot">{un}</b> boxes</span>
         </div>
       </div>
     </div>);
