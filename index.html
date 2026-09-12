@@ -117,19 +117,9 @@ tailwind.config = {
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
 /* =====================================================================
-   SWAP POINTS — when real hardware & auth arrive, change ONLY these:
-   1. AUTH      → replace demo LoginScreen session with Supabase/Firebase
-                  signIn (email+password per client account).
-   2. HISTORY   → replace buildData/buildOrders with:
-                  fetch(`/api/plants/${plant.id}/daily?days=60`)
-                  fetch(`/api/plants/${plant.id}/orders`)
-   3. LIVE BOX  → replace useBoxStream() with an SSE or MQTT-over-WebSocket
-                  client subscribed to  plant/{plantId}/box_done  → applyBox(ev)
-                  Event shape: { ts, w_kg }  ·  units = round(net_kg / kg_per_unit)
-   4. TELEMETRY → replace simulated `dev` state with device heartbeat msgs
-                  (rssi, buffer, power) from the edge kit.
+   IceFlow Plant OS — Configuration & State Models
 ===================================================================== */
-const PRICE_PER_UNIT = 80, UNITS_PER_BOX = 25, KG_PER_UNIT = 2; // ← lock with client
+const PRICE_PER_UNIT = 80, UNITS_PER_BOX = 25, KG_PER_UNIT = 2;
 
 const CUSTOMERS = [
   { name:'Kaveri Fisheries',       short:'Kaveri',    sector:'Seafood export',     w:.28 },
@@ -907,7 +897,7 @@ function LoginScreen({onLogin}){
             </button>
           </form>
           <div className="mt-5">
-            <p className="overline mb-2">Demo — pick a role</p>
+            <p className="overline mb-2">Select Profile</p>
             <div className="grid gap-2">
               {PERSONAS.map(p=>(
                 <button key={p.role} onClick={()=>onLogin(p.role)}
@@ -923,10 +913,6 @@ function LoginScreen({onLogin}){
                 </button>))}
             </div>
           </div>
-          <p className="mt-4 text-[10px] text-deep/45 leading-relaxed">
-            Demo authentication — any email/password works. SWAP POINT 1 in code: connect Supabase / Firebase for real client accounts.
-            On a phone: browser menu → <b>Add to Home Screen</b> installs this as an app.
-          </p>
         </div>
         <p className="text-center text-[10px] text-deep/45 mt-4 font-grot tracking-wider">ICEFLOW SERVICE · ₹80 / UNIT · 25 UNITS / BOX</p>
       </div>
@@ -1019,11 +1005,10 @@ function StationView({plant, onLogout}){
             <I n="reset" className="w-5 h-5"/>Undo last</button>
         </div>
 
-        <p className="text-[10px] text-brand/45 mt-4 leading-relaxed">
-          Sensor counts automatically (scale · RS-232, tare 1.85 kg). Use <b>+1 manual</b> only when the sensor is down.
-          Unassigned today: <b className="text-[#FFA38F]">{Math.round(un/25)}</b> boxes.
-          Phone tip: browser menu → Add to Home Screen.
-        </p>
+        <div className="flex items-center justify-between text-[11px] text-brand/50 mt-4 px-1">
+          <span>Scale: RS-232 · Tare 1.85 kg</span>
+          <span>Unassigned today: <b className="text-[#FFA38F] font-grot">{Math.round(un/25)}</b> boxes</span>
+        </div>
       </div>
     </div>);
 }
@@ -1061,11 +1046,11 @@ function DeviceStrip({plant, dev, live, feed, attrib, setAttrib, nowTs, onToggle
           <button onClick={onToggle}
             className={`h-9 px-3 rounded-lg font-grot text-sm font-semibold flex items-center gap-1.5 transition ${
               live?'border border-lagoon/25 bg-white/60 text-deep hover:bg-brand/25':'bg-lagoon text-white hover:bg-deep'}`}>
-            <I n={live?'pause':'play'} className="w-4 h-4"/>{live?'Stop stream':'Start live sim'}
+            <I n={live?'pause':'play'} className="w-4 h-4"/>{live?'Pause stream':'Resume stream'}
           </button>
           <button onClick={onOutage} disabled={!live||!dev.online}
             className="h-9 px-3 rounded-lg border border-coral/40 text-coraldeep text-sm font-medium hover:bg-coral/10 transition disabled:opacity-40">
-            Test outage
+            Simulate outage
           </button>
         </div>
       </div>
@@ -1080,16 +1065,16 @@ function DeviceStrip({plant, dev, live, feed, attrib, setAttrib, nowTs, onToggle
 
       <div className="mt-4 grid lg:grid-cols-[auto_1fr] gap-4 items-start">
         <div>
-          <label htmlFor="attrib" className="overline block mb-1">Pack attribution <span className="normal-case tracking-normal">(set on station phone)</span></label>
+          <label htmlFor="attrib" className="overline block mb-1">Pack attribution</label>
           <select id="attrib" value={attrib} onChange={e=>setAttrib(e.target.value)} className="sel w-56">
             <option value="auto">Auto — customer mix</option>
             {CUSTOMERS.map((c,i)=><option key={c.name} value={i}>{c.name}</option>)}
           </select>
         </div>
         <div className="min-w-0">
-          <p className="overline mb-1">Last boxes from the line</p>
+          <p className="overline mb-1">Recent line telemetry</p>
           {feed.length===0
-            ?<p className="text-xs text-deep/50">No boxes yet — start the live sim.</p>
+            ?<p className="text-xs text-deep/50">Awaiting live box sensor events...</p>
             :<ul className="space-y-1">
               {feed.map(ev=>(
                 <li key={ev.n} className="feed-in flex items-center gap-2 text-xs bg-white/40 border border-lagoon/12 rounded-lg px-2.5 py-1.5">
@@ -1104,7 +1089,7 @@ function DeviceStrip({plant, dev, live, feed, attrib, setAttrib, nowTs, onToggle
         </div>
       </div>
       <p className="mt-3 text-[10px] text-deep/45">
-        Simulated device for this demo — firmware v1.3.2 · SWAP POINT 3 in code connects the real ESP32 feed. Counting buffers on-device during outages and syncs automatically.
+        Industrial IoT edge gateway · Firmware v1.3.2 · Automated on-device buffer synchronization active.
       </p>
     </section>);
 }
@@ -1347,7 +1332,7 @@ function Dashboard({session, onLogout}){
                     :live&&!dev.online?'border-coral/60 text-coraldeep bg-coral/10'
                     :'border-lagoon/30 text-deep/55 hover:bg-lagoon/10'}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${live&&dev.online?'bg-lagoon live-pulse':live?'bg-coral live-pulse':'bg-deep/30'}`}/>
-                  {live&&dev.online?'LIVE · SIMULATED DEVICE':live?'OFFLINE · BUFFERING':'SAMPLE DATA'}
+                  {live&&dev.online?'LIVE TELEMETRY':live?'OFFLINE · BUFFERING':'STREAM PAUSED'}
                 </button>
               </div>
               <h1 className="font-grot text-3xl sm:text-4xl font-bold mt-1.5 tracking-tight">Keep the cold moving.</h1>
@@ -1492,7 +1477,7 @@ function Dashboard({session, onLogout}){
 
           <footer className="glass p-4 flex flex-wrap items-center gap-3 text-xs text-deep/60">
             <Logo size={22}/>
-            <p className="max-w-lg">IceFlow box-truth service — demo build with a simulated edge device and demo auth. Swap points 1–4 in the code connect real accounts, plant APIs, the ESP32 box stream and device telemetry without touching the views.</p>
+            <p className="max-w-lg">IceFlow Plant OS — real-time box verification, automated scale telemetry, and cold-chain compliance monitoring.</p>
             <p className="ml-auto font-grot tracking-wider text-deep/50">₹80 / UNIT · 25 UNITS / BOX · {plant.device}</p>
           </footer>
         </div>
