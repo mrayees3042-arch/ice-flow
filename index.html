@@ -941,13 +941,14 @@ function StationView({plant, onLogout}){
   fire.current=()=>rec(selRef.current, +(KG_PER_UNIT*UNITS_PER_BOX+1.85+Math.random()*2.4-1.2).toFixed(2), false);
   useBoxStream(true, fire);
 
-  const undo=()=>{ setEvents(e=>{
-    if(!e.length) return e;
-    const [ev,...rest]=e;
-    if(ev.ci!=null) setCounts(c=>{ const n=c.slice(); n[ev.ci]-=25; return n; });
-    else setUn(u=>Math.max(0,u-25));
-    setLast(rest[0]||null);
-    return rest; }); };
+  const undo = () => {
+    if (!events.length) return;
+    const ev = events[0];
+    setEvents(e => e.slice(1));
+    if (ev.ci != null) setCounts(c => { const n = c.slice(); n[ev.ci] = Math.max(0, n[ev.ci] - 25); return n; });
+    else setUn(u => Math.max(0, u - 25));
+    setLast(events[1] || null);
+  };
   const totalBoxes=Math.round((counts.reduce((a,b)=>a+b,0)+un)/25);
 
   return (
@@ -1105,7 +1106,7 @@ const ROLE_LABEL={owner:'Plant owner', provider:'Service admin'};
 
 function Dashboard({session, onLogout}){
   const [plantId,setPlantId]=useState('P1');
-  const plant=PLANTS.find(p=>p.id===session.role==='provider'?p.id===plantId:p.id==='P1')||PLANTS[0];
+  const plant = (session.role === 'provider' ? PLANTS.find(p => p.id === plantId) : null) || PLANTS[0];
   const pRef=useRef(plant); pRef.current=plant;
 
   const [days,setDays]=useState(()=>buildData(plant));
@@ -1136,17 +1137,16 @@ function Dashboard({session, onLogout}){
     setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),3800);
   },[]);
 
-  /* plant switch → rebuild everything (SWAP POINT 2: fetch per plant here) */
+  /* plant switch → rebuild data for selected plant */
   useEffect(()=>{
-    const p=pRef.current;
-    const d=buildData(p), o=buildOrders(p);
+    const d=buildData(plant), o=buildOrders(plant);
     setDays(d); setOrders(o);
     nextOrd.current=+o[0].id.slice(3)+1;
     boxNo.current=141; setFeed([]); buffer.current=[];
     clearTimeout(outRef.current);
     setDev({online:true,pending:0,lastBeat:Date.now()});
     setLive(true);
-  },[plantId]);
+  },[plant]);
 
   const applyBox=useCallback(({ts,w,ci})=>{
     setDays(prev=>{ const cp=prev.slice(); const last={...cp[cp.length-1]};
