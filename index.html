@@ -173,6 +173,7 @@ function buildData(plant){
 
 function buildOrders(plant){
   const rnd=mulberry32(plant.oseed); const list=[];
+  const now = new Date();
   for(let di=53;di<=59;di++){
     const n=3+Math.floor(rnd()*3);
     for(let k=0;k<n;k++){
@@ -180,9 +181,23 @@ function buildOrders(plant){
       const units=(2+Math.floor(rnd()*18))*25;
       const when=new Date();
       const day=new Date(); day.setDate(day.getDate()-(59-di));
-      when.setTime(day.getTime()); when.setHours(5+Math.floor(rnd()*13), Math.floor(rnd()*60));
+      when.setTime(day.getTime());
+      if(di===59){
+        const nowH = now.getHours();
+        const maxH = Math.max(5, nowH);
+        const h = 5 + Math.floor(rnd() * Math.max(1, maxH - 5 + 1));
+        const m = (h >= nowH) ? Math.floor(rnd() * Math.max(1, now.getMinutes())) : Math.floor(rnd() * 60);
+        when.setHours(h, m, 0, 0);
+      } else {
+        when.setHours(5+Math.floor(rnd()*13), Math.floor(rnd()*60), 0, 0);
+      }
       const s=rnd(); let status;
-      if(di===59)      status = s<.28?'In transit': s<.5?'Loading bay': s<.62?'Crushing': s<.88?'Delivered':'On hold';
+      if(di===59){
+        const elapsedMins = (now.getTime() - when.getTime()) / 60000;
+        if(elapsedMins < 20) status = s < .5 ? 'Crushing' : 'Loading bay';
+        else if(elapsedMins < 90) status = s < .6 ? 'In transit' : 'Loading bay';
+        else status = s < .75 ? 'Delivered' : 'In transit';
+      }
       else if(di===58) status = s<.6?'Delivered':'In transit';
       else             status = 'Delivered';
       list.push({customer:CUSTOMERS[ci].name, units, when, status});
@@ -203,8 +218,18 @@ function rangeStats(days, n){
     .map(c=>({...c, revenue:c.units*PRICE_PER_UNIT})).filter(c=>c.units>0)
     .sort((a,b)=>b.units-a.units);
   const tot=customers.reduce((s,c)=>s+c.units,0)||1;
-  customers.forEach(c=>c.pct=Math.round(100*c.units/tot));
-  return { units, revenue:units*PRICE_PER_UNIT, boxes, avg:units/boxes,
+  let sumPct = 0;
+  const withFrac = customers.map(c => {
+    const raw = (100 * c.units) / tot;
+    const floor = Math.floor(raw);
+    sumPct += floor;
+    return { c, floor, frac: raw - floor };
+  });
+  let rem = 100 - sumPct;
+  withFrac.slice().sort((a, b) => b.frac - a.frac).forEach((item, idx) => {
+    item.c.pct = item.floor + (idx < rem ? 1 : 0);
+  });
+  return { units, revenue:units*PRICE_PER_UNIT, boxes, avg:UNITS_PER_BOX,
     delta:(units-prevUnits)/prevUnits*100, perDay:cur, priorPerDay:prev, customers };
 }
 
@@ -1245,7 +1270,7 @@ function Dashboard({session, onLogout}){
     const orderCount=rows.length-1;
     rows.push([],['Range','last '+n+' days'],['Total units',stats.units],
       ['Revenue @ ₹80/unit',stats.revenue],['Boxes',stats.boxes],
-      ['Avg units/box',stats.avg.toFixed(1)],['Active customers',stats.customers.length]);
+      ['Units/box',UNITS_PER_BOX],['Active customers',stats.customers.length]);
     const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
     const a=document.createElement('a'); a.href=url; a.download=`iceflow-${plant.id}-orders-${range}.csv`;
@@ -1401,7 +1426,7 @@ function Dashboard({session, onLogout}){
                   <p className="overline">Revenue @ ₹80 / unit</p>
                   <p className="font-grot text-2xl text-lagoon mt-0.5 tabular-nums">{fmtINR(stats.revenue)}</p>
                 </div>
-                <p className="text-xs text-deep/60">{stats.boxes} boxes · avg {stats.avg.toFixed(1)} units / box</p>
+                <p className="text-xs text-deep/60">{stats.boxes} boxes · {UNITS_PER_BOX} units / box</p>
               </div>
             </div>
             <div className="glass p-5 md:col-span-3 flex flex-col">
