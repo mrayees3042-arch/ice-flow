@@ -459,8 +459,8 @@ function ProductionLine(){
     {id:'crane',tag:'CR-02',name:'Gantry Crane',desc:'Overhead gantry CR-02 lifts one cured slab per cycle from the can grid, carries it along the rail and feeds the crusher mouth.'},
     {id:'crusher',tag:'IC-01',name:'Ice Crusher',desc:'IC-01 jaw crusher breaks slabs into graded crush (5–20 mm) for fish-hold icing. Output drops through the chute onto the packing conveyor.'},
     {id:'conveyor',tag:'CV-03',name:'Conveyor',desc:'CV-03 carries crushed ice from the chute to the packing head. Belt duty is tied to crusher activity.'},
-    {id:'packing',tag:'PK-01',name:'Box Packing',desc:'Boxes fill to 25 units inside food-grade, leak-proof liners — closed vans have no drainage, so meltwater stays in the box. Full boxes seal and roll to the dock. THIS is where the IceFlow edge device weighs and counts every box.'},
-    {id:'dock',tag:'DOCK-02',name:'Seafood Load-Out',desc:'Closed insulated vans for seafood accounts. Boxes stack 8 per van; the door opens only to load and every open second is logged as cold-chain exposure. Full vans seal and leave for the harbour run.'},
+    {id:'packing',tag:'PK-01',name:'Box Packing',desc:'Boxes fill with graded crushed ice inside food-grade, leak-proof liners (1 crushed 50 kg block = 2 boxes of 25 kg each). Full boxes seal and roll down the gravity conveyor toward the loading dock.'},
+    {id:'dock',tag:'DOCK-02',name:'Seafood Load-Out & Gate Count',desc:'Vehicle loading ramp & cold-chain entry. The IceFlow optical proximity sensor counts each box as it passes into the insulated van (1,200 ms debounce filter) — serving as verified proof of delivery before departure.'},
   ];
   const stageStatus=id=>{
     switch(id){
@@ -1072,10 +1072,10 @@ function DeviceStrip({plant, dev, live, feed, attrib, setAttrib, nowTs, onToggle
   const chips=[
     ['Heartbeat', !live?'—': dev.online?ago(dev.lastBeat):'offline '+ago(dev.lastBeat)],
     ['Buffer',    dev.pending>0?dev.pending+' events pending':'0 pending'],
-    ['Power',     dev.online?'Grid · UPS ok':'On battery'],
-    ['Signal',    'WiFi −52 dBm'],
-    ['Sensor',    'Scale · RS-232 stable-wt'],
-    ['Tare',      '1.85 kg · +2.0 trip'],
+    ['Gate Point', plant.dock ? plant.dock+' · Van Entry' : 'DOCK-02 · Van Entry'],
+    ['Sensor Type', 'IR Proximity Gate'],
+    ['Debounce', '1,200 ms (wobble filter)'],
+    ['Signal & Pwr', dev.online?'WiFi −52 dBm · Grid ok':'WiFi −52 dBm · Battery'],
   ];
   const bad=!live?null:(dev.online?(dev.pending>0?'warn':'ok'):'bad');
   return (
@@ -1138,17 +1138,24 @@ function DeviceStrip({plant, dev, live, feed, attrib, setAttrib, nowTs, onToggle
               {feed.map(ev=>(
                 <li key={ev.n} className="feed-in flex items-center gap-2 text-xs bg-white/40 border border-lagoon/12 rounded-lg px-2.5 py-1.5">
                   <I n="box" className="w-3.5 h-3.5 text-lagoon shrink-0"/>
-                  <span className="font-grot font-medium">PK-0{ev.n}</span>
-                  <span className="text-deep/70">{ev.w?ev.w.toFixed(1)+' kg':'manual'}</span>
-                  <span className="truncate">{CUSTOMERS[ev.ci]?CUSTOMERS[ev.ci].name:'Unassigned'}</span>
+                  <span className="font-grot font-medium">BOX #{ev.n}</span>
+                  <span className="truncate font-medium">{CUSTOMERS[ev.ci]?CUSTOMERS[ev.ci].name:'Unassigned'}</span>
+                  <span className="text-lagoon font-grot font-semibold">₹{ev.rate || (CUSTOMERS[ev.ci]?CUSTOMERS[ev.ci].rate:80)}/box</span>
+                  {ev.debounced && (
+                    <span className="text-[10px] font-grot px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 border border-amber-500/20" title="Optical debounce filtered conveyor wobble">
+                      filtered wobble
+                    </span>
+                  )}
                   <span className="ml-auto text-deep/50 font-grot tabular-nums">{hhmm(ev.ts)}</span>
-                  <span className="text-lagoon"><I n="check" className="w-3.5 h-3.5"/></span>
+                  <span className="text-lagoon flex items-center gap-0.5 text-[11px] font-grot" title="DOCK-02 Gate verified count">
+                    <I n="check" className="w-3.5 h-3.5"/> DOCK-02
+                  </span>
                 </li>))}
             </ul>}
         </div>
       </div>
       <p className="mt-3 text-[10px] text-deep/45">
-        Industrial IoT edge gateway · Firmware v1.3.2 · Automated on-device buffer synchronization active.
+        Industrial IoT edge gateway · DOCK-02 optical gate · 1,200 ms debounce filter · Automated on-device buffer synchronization active.
       </p>
     </section>);
 }
